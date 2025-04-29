@@ -1,0 +1,70 @@
+
+def buildNumber                          = currentBuild.number
+pipeline {
+    agent {
+        kubernetes {
+            defaultContainer 'jnlp'
+            yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+  name: jenkins
+spec:
+  volumes:
+    - name: docker-sock
+      hostPath:
+        path: /var/run/docker.sock
+  containers:
+  - name: docker
+    image: docker:latest
+    imagePullPolicy: IfNotPresent
+    command:
+    - cat
+    tty: true
+    volumeMounts:  
+    - mountPath: /var/run/docker.sock
+      name: docker-sock
+"""
+        }
+    }
+    stages {
+        stage ('docker hub login') {
+            steps {
+			  withCredentials([usernamePassword(credentialsId: 'Docker-hub-creds', passwordVariable: 'password', usernameVariable: 'username')]) {
+                    // sh 'docker login -u $username -p $password'
+                    container("docker") {
+                    script {
+                        sh """
+                        docker login -u $username -p $password
+                        """
+                    }
+                }
+                }
+            }
+        }
+        stage ('pull nginx image') {
+            steps {
+                container("docker") {
+                    script {
+                        sh """
+                        chmod 666 /var/run/docker.sock
+                        docker pull nginx:latest
+                        """
+                    }
+                }
+            }
+        }
+        stage ('push nginx image to docker hub repo') {
+            steps {
+                container("docker") {
+                    script {
+                        sh """
+						docker tag nginx ranjana061/nginx-demo:nginx-$buildNumber
+                        docker push ranjana061/nginx-demo:nginx-$buildNumber
+                        """
+                    }
+                }
+            }
+        }
+    }
+}
