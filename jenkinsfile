@@ -1,70 +1,57 @@
-
-def buildNumber                          = currentBuild.number
 pipeline {
-    agent {
-        kubernetes {
-            defaultContainer 'jnlp'
-            yaml """
-apiVersion: v1
-kind: Pod
-metadata:
-  name: jenkins
-spec:
-  volumes:
-    - name: docker-sock
-      hostPath:
-        path: /var/run/docker.sock
-  containers:
-  - name: docker
-    image: docker:latest
-    imagePullPolicy: IfNotPresent
-    command:
-    - cat
-    tty: true
-    volumeMounts:  
-    - mountPath: /var/run/docker.sock
-      name: docker-sock
-"""
+    agent any
+
+    environment {
+        DOCKER_IMAGE = "ranjana061/devops-task"
+        DOCKER_REGISTRY = "docker.io"
+    }
+
+    stages {
+        stage('Clone Repository') {
+            steps {
+                // Clone your GitHub repository
+                git 'https://github.com/pragatizone/DevOps-Task.git'
+            }
+        }
+
+        stage('Login to Docker Registry') {
+            steps {
+                script {
+                    // Log in to Docker Hub using stored credentials
+                    withCredentials([usernamePassword(credentialsId: 'docker-credentials', 
+                                                       usernameVariable: 'DOCKER_USERNAME', 
+                                                       passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Build the Docker image with the name `ranjana061/devops-task`
+                    docker.build("${DOCKER_IMAGE}:latest")
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    // Push the Docker image to Docker Hub
+                    docker.withRegistry("https://${DOCKER_REGISTRY}", 'docker-credentials') {
+                        docker.image("${DOCKER_IMAGE}:latest").push()
+                    }
+                }
+            }
         }
     }
-    stages {
-        stage ('docker hub login') {
-            steps {
-			  withCredentials([usernamePassword(credentialsId: 'Docker-hub-creds', passwordVariable: 'password', usernameVariable: 'username')]) {
-                    // sh 'docker login -u $username -p $password'
-                    container("docker") {
-                    script {
-                        sh """
-                        docker login -u $username -p $password
-                        """
-                    }
-                }
-                }
-            }
-        }
-        stage ('pull nginx image') {
-            steps {
-                container("docker") {
-                    script {
-                        sh """
-                        chmod 666 /var/run/docker.sock
-                        docker pull nginx:latest
-                        """
-                    }
-                }
-            }
-        }
-        stage ('push nginx image to docker hub repo') {
-            steps {
-                container("docker") {
-                    script {
-                        sh """
-						docker tag nginx ranjana061/nginx-demo:nginx-$buildNumber
-                        docker push ranjana061/nginx-demo:nginx-$buildNumber
-                        """
-                    }
-                }
-            }
+
+    post {
+        always {
+            // Clean up workspace after build
+            cleanWs()
         }
     }
 }
