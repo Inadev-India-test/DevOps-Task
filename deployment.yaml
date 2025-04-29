@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: devops-task
+  name: devops-task-deployment
 spec:
   replicas: 1
   selector:
@@ -14,6 +14,19 @@ spec:
     spec:
       containers:
       - name: devops-task
-        image: ranjana061/devops-task:latest  # Ensure this matches the Docker image pushed to Docker Hub
+        image: "docker.io/ranjana061/devops-task:latest"  # The image pushed to Docker Hub
         ports:
         - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: devops-task-service
+spec:
+  selector:
+    app: devops-task
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: LoadBalancer
